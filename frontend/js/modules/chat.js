@@ -89,13 +89,13 @@ class ChatModule {
 //stream_end
 websocket.subscribe("stream_end", (msg) => {
       console.log('[ChatModule] stream_end raw msg:', msg);
-      if (!this.streamElement) {
-        // 尝试恢复最后一个 AI 元素
-        const lastAi = this.messagesContainer && this.messagesContainer.querySelector('.ai-message:last-of-type .markdown-content');
-        if (lastAi) {
-          this.streamElement = lastAi;
-        }
-      }
+      // if (!this.streamElement) {
+      //   // 尝试恢复最后一个 AI 元素
+      //   const lastAi = this.messagesContainer && this.messagesContainer.querySelector('.ai-message:last-of-type .markdown-content');
+      //   if (lastAi) {
+      //     this.streamElement = lastAi;
+      //   }
+      // }
     
       if (this.streamElement) {
         let finalChunk = '';
@@ -113,9 +113,9 @@ websocket.subscribe("stream_end", (msg) => {
         }
 
         // 将最终块添加到缓冲区
-        if (finalChunk) {
-          this.aiMessageBuffer += finalChunk;
-        }
+        // if (finalChunk) {
+        //   this.aiMessageBuffer += finalChunk;
+        // }
 
         // 使用完整缓冲区内容更新DOM
         if (this.aiMessageBuffer !== null && this.streamElement) {
