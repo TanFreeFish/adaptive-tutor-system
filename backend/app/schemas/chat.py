@@ -119,7 +119,6 @@ class ChatResponse(BaseModel):
     """
     ai_response: str
 
-
 class SentimentAnalysisResult(BaseModel):
     """情感分析结果模型
 
@@ -133,6 +132,27 @@ class SentimentAnalysisResult(BaseModel):
     label: str  # "NEUTRAL", "CONFUSED", "FRUSTRATED", "EXCITED", etc.
     confidence: float
     details: Optional[Dict[str, Any]] = None
+
+
+class ChatResponseWithAnalysis(BaseModel):
+    """带分析结果的聊天响应模型
+
+    AI助手的聊天响应，包含回复内容和分析结果。
+
+    Attributes:
+        ai_response: AI回复内容，助手生成的回复文本
+        sentiment_result: 情感分析结果
+        clustering_result: 聚类分析结果
+        system_prompt: 系统提示词
+        content_title: 内容标题
+        context_snapshot: 上下文快照
+    """
+    ai_response: str
+    sentiment_result: Optional[SentimentAnalysisResult] = None
+    clustering_result: Optional[Dict[str, Any]] = None
+    system_prompt: Optional[str] = None
+    content_title: Optional[str] = None
+    context_snapshot: Optional[str] = None
 
 
 class UserStateSummary(BaseModel):

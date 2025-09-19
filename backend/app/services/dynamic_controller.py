@@ -1,7 +1,7 @@
 # backend/app/services/dynamic_controller.py
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Generator
 from sqlalchemy.orm import Session
 from app.schemas.chat import ChatRequest, ChatResponse, UserStateSummary, SentimentAnalysisResult
 from app.services.sentiment_analysis_service import SentimentAnalysisService
@@ -391,15 +391,15 @@ class DynamicController:
         request: ChatRequest,
         db: Session,
         background_tasks = None
-    ):
+    ) -> Generator[tuple, None, None]:
         """
         同步生成自适应AI回复的核心流程（供Celery任务使用）
         Args:
             request: 聊天请求
             db: 数据库会话
             background_tasks: 后台任务处理器（可选）
-        Returns:
-            ChatResponse: AI回复
+        Yields:
+            tuple: (AI回复内容, 情感分析结果, 聚类分析结果, 系统提示词, 内容标题, 上下文快照)
         """
         
         try:
@@ -418,6 +418,7 @@ class DynamicController:
             # 步骤1: 获取或创建用户档案（使用UserStateService）
             profile, _ = self.user_state_service.get_or_create_profile(request.participant_id, db)
             # 步骤2: 情感分析
+            sentiment_result = None
             if self.sentiment_service:
                 sentiment_result = self.sentiment_service.analyze_sentiment(
                     translated_message
@@ -471,6 +472,7 @@ class DynamicController:
                 pass
 
             # 步骤4.5: 进度聚类分析（在构建用户状态摘要前）
+            clustering_result = None
             if request.conversation_history:
                 # 将ConversationMessage转换为字典格式用于聚类分析
                 conversation_for_clustering = []
@@ -480,7 +482,6 @@ class DynamicController:
                         'role': msg.role,
                         'content': msg.content
                     })
-                
                 
                 # 使用节流逻辑：仅在满足条件时才触发聚类分析
                 should_cluster = self.user_state_service._should_perform_clustering(profile,conversation_for_clustering)
@@ -542,25 +543,27 @@ class DynamicController:
                 content_json=loaded_content_json,  # 传递加载的内容JSON
                 test_results=request.test_results  # 传递测试结果
             )
-            ai_response=""
+            ai_response = ""
             # 步骤6: 调用LLM（同步方式）
-            for chunck in self.llm_gateway.get_stream_completion_sync(
+            for chunk in self.llm_gateway.get_stream_completion_sync(
                 system_prompt=system_prompt,
                 messages=messages
             ):
-                ai_response += chunck
-                yield chunck
+                ai_response += chunk
+                yield chunk
+            
             # 步骤7: 构建响应（只包含AI回复内容，符合TDD-II-10设计）
             response = ChatResponse(ai_response=ai_response)
+            
             # 步骤8: 记录AI交互
-            self._log_ai_interaction(request, response, db, sentiment_result, background_tasks, system_prompt, content_title, context_snapshot)
-            #return response
+            #self._log_ai_interaction(request, response, db, sentiment_result, background_tasks, system_prompt, content_title, context_snapshot)
+            
+            # 返回完整的结果，包括AI回复和分析数据
+            yield (response, sentiment_result, clustering_result, system_prompt, content_title, context_snapshot)
         except Exception as e:
             print(f"❌ CRITICAL ERROR in generate_adaptive_response_sync: {e}")
             import traceback
             traceback.print_exc()
             # 返回一个标准的、用户友好的错误响应
             # 不包含任何可能泄露内部实现的细节
-            return ChatResponse(
-                ai_response="I'm sorry, but a critical error occurred on our end. Please notify the research staff."
-            )
+            yield ("I'm sorry, but a critical error occurred on our end. Please notify the research staff.", None, None, None, None, None)
